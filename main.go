@@ -13,7 +13,6 @@ import (
 )
 
 // DB stores db session info
-
 type DB struct {
 	session    *mgo.Session
 	collection *mgo.Collection
@@ -33,7 +32,7 @@ type BoxOffice struct {
 	Gross  uint64 ` bson:"gross"`
 }
 
-// GetMovie fetches a movie with given ID
+// GetMovie handler function fetches a movie with given ID
 func (db *DB) GetMovie(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	w.WriteHeader(http.StatusOK)
@@ -49,7 +48,7 @@ func (db *DB) GetMovie(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// PostMovie adds a new movie to our DB collecion
+// PostMovie handler function adds a new movie to our DB collecion
 func (db *DB) PostMovie(w http.ResponseWriter, r *http.Request) {
 	var movie Movie
 	postBody, _ := ioutil.ReadAll(r.Body)
@@ -69,6 +68,41 @@ func (db *DB) PostMovie(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// UpdateMovie is a put request
+func (db *DB) UpdateMovie(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	var movie Movie
+	putBody, _ := ioutil.ReadAll(r.Body)
+	json.Unmarshal(putBody, &movie)
+
+	//Create a hash ID to insert
+
+	err := db.collection.Update(bson.M{"_id": bson.IsObjectIdHex(vars["id"])}, bson.M{"$set": &movie})
+	if err != nil {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(err.Error()))
+	} else {
+		w.Header().Set("Content-Type", "text")
+		w.Write([]byte("Updated successfully!"))
+	}
+}
+
+// DeleteMovie deletes a movie
+func (db *DB) DeleteMovie(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+
+	// Create a hash id to insert
+
+	err := db.collection.Remove(bson.M{"_id": bson.ObjectIdHex(vars["id"])})
+	if err != nil {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(err.Error()))
+	} else {
+		w.Header().Set("Content-Type", "text")
+		w.Write([]byte("Deleted successfully!"))
+	}
+}
+
 func main() {
 	session, err := mgo.Dial("127.0.0.1")
 	c := session.DB("appdb").C("movies")
@@ -84,8 +118,10 @@ func main() {
 	r := mux.NewRouter()
 
 	// Attach an elegant path with handler
-	r.HandleFunc("/v1/movies/{id:[a-zA-z0-9]*}", db.GetMovie).Methods("GET")
+	r.HandleFunc("/v1/movies/{id:[a-zA-Z0-9]*}", db.GetMovie).Methods("GET")
 	r.HandleFunc("/v1/movies", db.PostMovie).Methods("POST")
+	r.HandleFunc("/v1/movies/{id:[a-zA-Z0-9]*}", db.UpdateMovie).Methods("PUT")
+	r.HandleFunc("/v1/movies/{id:[a-zA-Z0-9]*}", db.DeleteMovie).Methods("DELETE")
 
 	srv := &http.Server{
 		Handler:      r,
